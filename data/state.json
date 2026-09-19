@@ -6,10 +6,10 @@
       "attempts": [
         {
           "reserved_at": "2026-09-19T11:00:19.843890+09:00",
-          "status": "reserved"
+          "status": "failed"
         }
       ],
-      "status": "reserved",
+      "status": "failed",
       "issued_at": "2026-09-19T03:40:00+09:00"
     }
   },
