@@ -75,7 +75,10 @@ def reserve(state, meta, retry=False, limit=70, now=None):
     old=state['documents'].get(sha)
     if old and old['status']=='complete': return False,'unchanged'
     if old and not retry: return False,'retry_required'
-    if old and len(old['attempts'])>=2: return False,'attempt_limit'
+    # User authorized exactly one extra retry for this initial deployment source.
+    extra_retry = (retry and old and len(old['attempts']) == 2 and
+        sha == 'bdb60659e888cf73aa2c943243dc2aafd9ba7abcf41211a60cdd23ecaf65dfa5')
+    if old and len(old['attempts'])>=2 and not extra_retry: return False,'attempt_limit'
     month=now.strftime('%Y-%m')
     if state['monthly_requests'].get(month,0)>=limit: return False,'budget_limit'
     item=old or {'id':meta['id'],'attempts':[]}
