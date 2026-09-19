@@ -7,13 +7,17 @@
         {
           "reserved_at": "2026-09-19T11:00:19.843890+09:00",
           "status": "failed"
+        },
+        {
+          "reserved_at": "2026-09-19T11:06:05.053709+09:00",
+          "status": "reserved"
         }
       ],
-      "status": "failed",
+      "status": "reserved",
       "issued_at": "2026-09-19T03:40:00+09:00"
     }
   },
   "monthly_requests": {
-    "2026-09": 1
+    "2026-09": 2
   }
 }

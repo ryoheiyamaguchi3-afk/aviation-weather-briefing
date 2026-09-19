@@ -1,0 +1,9 @@
+{
+  "usage": {
+    "input_tokens": 100,
+    "output_tokens": 200,
+    "total_tokens": 300
+  },
+  "completed": true,
+  "output_limit_reached": false
+}
