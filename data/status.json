@@ -1,0 +1,27 @@
+{
+  "checked_at": "2026-09-19T09:42:42.381814+09:00",
+  "code": "not_analyzed",
+  "source": {
+    "name": "短期予報解説資料1",
+    "issued_at": "2026-09-19T03:40:00+09:00",
+    "edition": "朝版（05時予報向け）",
+    "source_url": "https://www.data.jma.go.jp/yoho/data/jishin/kaisetsu_tanki_latest.pdf",
+    "index_url": "https://www.jma.go.jp/jma/kishou/know/expert/",
+    "fetched_at": "2026-09-19T09:42:42.337529+09:00",
+    "sha256": "bdb60659e888cf73aa2c943243dc2aafd9ba7abcf41211a60cdd23ecaf65dfa5",
+    "id": "20260919T0340-bdb60659e888",
+    "pages": 1,
+    "related": [
+      {
+        "name": "高層天気図",
+        "url": "https://www.jma.go.jp/bosai/numericmap/#type=upper",
+        "analyzed": false
+      },
+      {
+        "name": "FAX天気図",
+        "url": "https://www.jma.go.jp/bosai/numericmap/",
+        "analyzed": false
+      }
+    ]
+  }
+}

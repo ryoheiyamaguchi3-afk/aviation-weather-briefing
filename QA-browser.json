@@ -1,0 +1,13 @@
+{
+  "viewports": [
+    320,
+    390,
+    1440
+  ],
+  "overflow": false,
+  "editionNavigation": true,
+  "hazardAccordion": true,
+  "pdfZoomResetEscape": true,
+  "stalenessWarning": true,
+  "consoleErrors": []
+}
