@@ -57,6 +57,23 @@ def quarantine_unverified_claims(payload, pages):
         payload['limitations'] = payload['limitations'][:7] + [note]
     return payload
 
+def response_schema(pages):
+    # Constrain quotations to actual source spans instead of generated wording.
+    quotes=[]
+    for page in pages:
+        for line in re.split(r'[\n。]', page):
+            line=line.strip()
+            for start in range(0,len(line),120):
+                quote=line[start:start+120].strip()
+                if len(quote)>=6 and quote not in quotes: quotes.append(quote)
+    if not quotes or len(quotes)>200 or sum(map(len,quotes))>12000:
+        raise ValueError('source_quote_catalog_limit')
+    schema=Report.model_json_schema()
+    evidence=schema['$defs']['Evidence']['properties']
+    evidence['quote']['enum']=quotes
+    evidence['page']['enum']=list(range(1,len(pages)+1))
+    return schema
+
 def read_json(path, default=None):
     return json.loads(path.read_text(encoding='utf-8')) if path.exists() else default
 
@@ -130,7 +147,7 @@ def api_request(meta,pdf,pages,model):
                   'file_data':'data:application/pdf;base64,'+base64.b64encode(pdf).decode('ascii')}
              ]}],
              'text':{'format':{'type':'json_schema','name':'aviation_weather_briefing',
-                               'strict':True,'schema':Report.model_json_schema()}}}
+                               'strict':True,'schema':response_schema(pages)}}}
     request=urllib.request.Request('https://api.openai.com/v1/responses',
         data=json.dumps(payload).encode(),method='POST',
         headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'})
