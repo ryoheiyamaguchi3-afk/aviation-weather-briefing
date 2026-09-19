@@ -4,7 +4,7 @@
   "edition": "朝版（05時予報向け）",
   "source_url": "https://www.data.jma.go.jp/yoho/data/jishin/kaisetsu_tanki_latest.pdf",
   "index_url": "https://www.jma.go.jp/jma/kishou/know/expert/",
-  "fetched_at": "2026-09-19T11:06:05.052532+09:00",
+  "fetched_at": "2026-09-19T11:50:43.133019+09:00",
   "sha256": "bdb60659e888cf73aa2c943243dc2aafd9ba7abcf41211a60cdd23ecaf65dfa5",
   "id": "20260919T0340-bdb60659e888",
   "pages": 1,
