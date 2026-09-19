@@ -1,8 +1,8 @@
 {
   "usage": {
-    "input_tokens": 7206,
-    "output_tokens": 7237,
-    "total_tokens": 14443
+    "input_tokens": 11115,
+    "output_tokens": 6464,
+    "total_tokens": 17579
   },
   "completed": true,
   "output_limit_reached": false
