@@ -1,10 +1,23 @@
 import unittest
 from urllib.error import HTTPError
 from briefing.demo import demo_record, DEMO_TEXT
-from briefing.pipeline import quarantine_unverified_claims, safe_error_code
-from briefing.schema import validate_report
+from briefing.pipeline import quarantine_unverified_claims, safe_error_code, response_schema
+from briefing.schema import validate_report, normalize
 
 class RecoveryTests(unittest.TestCase):
+    def test_quote_catalog_contains_only_real_source_spans(self):
+        pages=['原資料に存在する引用です。次の文も実際の文章です。', '二ページ目の文章を照合します。']
+        fields=response_schema(pages)['$defs']['Evidence']['properties']
+        self.assertEqual(fields['page']['enum'],[1,2])
+        self.assertGreaterEqual(len(fields['quote']['enum']),3)
+        for quote in fields['quote']['enum']:
+            self.assertTrue(any(normalize(quote) in normalize(p) for p in pages))
+            self.assertTrue(6<=len(quote)<=160)
+
+    def test_empty_source_cannot_create_a_quote_catalog(self):
+        with self.assertRaisesRegex(ValueError,'source_quote_catalog_limit'):
+            response_schema([''])
+
     def test_unverified_claim_is_discarded_not_relabelled(self):
         rec=demo_record()
         rec['report']['summary'][0]['text']='UNSUPPORTED CLAIM'
