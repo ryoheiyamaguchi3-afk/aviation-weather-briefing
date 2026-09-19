@@ -74,6 +74,51 @@ def response_schema(pages):
     evidence['page']['enum']=list(range(1,len(pages)+1))
     return schema
 
+def learning_guards(payload, pages, issued_at):
+    """Do not promote synoptic clues to confirmed aviation hazards or hourly forecasts."""
+    payload = Report.model_validate(payload).model_dump()
+    checks = {
+        'TS': '空港・航空路での雷雨の位置と時刻は未確定。METAR/SPECI、TAF、SIGMET、雷観測とレーダーを確認してください。',
+        'CB': 'CBの位置・雲頂高度・移動は未確定。SIGMET、衛星・レーダー、航空気象図を確認してください。',
+        'TURB': '乱気流の有無・高度・強度は未確定。SIGMET、航空気象図、上空風・航空機観測を確認してください。',
+        'ICE': '着氷の有無・高度・強度は未確定。気温、過冷却雲水、凍結高度、SIGMETと航空気象図を確認してください。',
+        'CROSSWIND': '横風成分は未確定。滑走路方位と現地の風向・風速・ガストを照合してください。',
+        'LLWS': 'LLWSは未確定。水平のシアーラインや時間的な風向変化だけでは判定できません。下層風の鉛直分布、空港のウィンドシア情報を確認してください。',
+        'VIS': '空港の視程は未確定。METAR/SPECIとTAFを確認してください。降水レーダーだけでは視程を判定できません。',
+        'CEILING': '雲底高度・シーリングは未確定。METAR/SPECIとTAFを確認してください。降水レーダーだけでは判定できません。',
+        'SNOW': '空港・航空路での雪の有無と時間帯は未確定。METAR/SPECI、TAF、気温鉛直分布と降水資料を確認してください。',
+        'MOUNTAIN WAVE': '山岳波は未確定。山脈を横切る風、風の鉛直分布と安定度、航空気象図を確認してください。',
+        'JET STREAM': 'ジェットの位置・高度・強度とCATは別に確認が必要です。高層天気図、航空気象図、SIGMETを確認してください。'
+    }
+    for item in payload['aviation']:
+        if item['code'] in checks:
+            item['assessment'] = {'text': checks[item['code']], 'label': '追加資料確認推奨', 'evidence': []}
+            item['region_time'] = {'text': 'この総観資料だけでは航空上の現象の発生域・高度・時間帯を特定できません。地域の総観場は上の各節と原資料を参照してください。', 'label': '追加資料確認推奨', 'evidence': []}
+            item['additional_checks'] = checks[item['code']]
+    # Use explicit source time wording, not model-invented subdivisions of a daily forecast.
+    for slot in payload['timeline']:
+        day = datetime.fromisoformat(slot['date_jst']).day
+        periods = {'朝': ['朝'], '昼': ['昼', '午後'], '夕方': ['夕方', '夕刻', '午後'], '夜': ['夜'], '翌朝': ['朝']}[slot['slot']]
+        patterns = [r'(?<!\d)'+str(day)+'日'+p for p in periods]
+        found = None
+        for page_no, page in enumerate(pages, 1):
+            for sentence in normalize(page).split('。'):
+                if 6 <= len(sentence) <= 500 and any(re.search(p, sentence) for p in patterns):
+                    found = (page_no, sentence); break
+            if found: break
+        if datetime.fromisoformat(issued_at).hour >= 12 and slot['slot'] in ['朝','昼']:
+            found = None
+        if found:
+            page_no, sentence = found
+            pos = min(re.search(p, sentence).start() for p in patterns if re.search(p, sentence))
+            quote = sentence[max(0,pos-20):max(0,pos-20)+150]
+            slot['outlook'] = {'text': '原資料の時間指定（広い時間幅の記述を含みます）：'+sentence+'。', 'label': '資料記載', 'evidence': [{'page':page_no,'quote':quote}]}
+        else:
+            slot['outlook'] = {'text': 'この時間帯に限定した変化は原資料から特定できません。日単位の予想を朝・昼・夜に細分化せず、TAF等で時間変化を確認してください。', 'label': '追加資料確認推奨', 'evidence': []}
+    note = '航空の詳細現象と細かな時間変化は、総観資料から断定せず追加確認としています。'
+    if note not in payload['limitations']: payload['limitations'] = payload['limitations'][:7] + [note]
+    return payload
+
 def read_json(path, default=None):
     return json.loads(path.read_text(encoding='utf-8')) if path.exists() else default
 
@@ -171,6 +216,7 @@ def api_request(meta,pdf,pages,model):
                 if part.get('type')=='refusal': raise ValueError('model_refusal')
                 if part.get('type')=='output_text': parts.append(part['text'])
     candidate=quarantine_unverified_claims(json.loads(''.join(parts)),pages)
+    candidate=learning_guards(candidate,pages,meta['issued_at'])
     report=validate_report(candidate,pages,meta['issued_at'])
     usage=result.get('usage') or {}
     return report.model_dump(),{k:int(usage.get(k,0)) for k in ['input_tokens','output_tokens','total_tokens']}
