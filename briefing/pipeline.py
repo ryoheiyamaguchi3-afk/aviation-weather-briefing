@@ -9,7 +9,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from .schema import Report, validate_report
+from .schema import Report, validate_report, normalize
 from .source import fetch_latest, now_jst
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -26,6 +26,36 @@ def safe_error_code(exc):
         return exc.args[0]
     if isinstance(exc, TimeoutError): return 'timeout'
     return 'response_validation_or_processing_error'
+
+def quarantine_unverified_claims(payload, pages):
+    # Never preserve a claim whose supplied evidence cannot be verified.
+    # Validate structure first; this does not repair arbitrary malformed output.
+    payload = Report.model_validate(payload).model_dump()
+    total = 0
+    rejected = 0
+    def walk(node):
+        nonlocal total, rejected
+        if isinstance(node, dict):
+            if {'text','label','evidence'} <= node.keys():
+                total += 1
+                invalid = node['label'] == '資料記載' and not node['evidence']
+                invalid = invalid or any(e['page'] > len(pages) or
+                    normalize(e['quote']) not in normalize(pages[e['page']-1])
+                    for e in node['evidence'])
+                if invalid:
+                    rejected += 1
+                    node.update(text='AIが示した根拠引用を原資料で確認できないため、この項目の説明は掲載していません。原資料と関連する公式気象資料を確認してください。',
+                                label='追加資料確認推奨', evidence=[])
+            for value in node.values(): walk(value)
+        elif isinstance(node, list):
+            for value in node: walk(value)
+    walk(payload)
+    # Reject broadly unreliable reports rather than publish a shell of warnings.
+    if rejected > max(3, total // 5): raise ValueError('unmatched_evidence')
+    if rejected:
+        note=f'根拠引用を照合できない{rejected}項目は、説明を破棄して要確認表示に置き換えています。'
+        payload['limitations'] = payload['limitations'][:7] + [note]
+    return payload
 
 def read_json(path, default=None):
     return json.loads(path.read_text(encoding='utf-8')) if path.exists() else default
@@ -109,7 +139,7 @@ def api_request(meta,pdf,pages,model):
         if key.encode() in raw: raise ValueError('secret_in_response')
         result=json.loads(raw)
     usage=result.get('usage') or {}
-    write_json(DATA/'diagnostics'/(meta['id']+'.json'), {
+    if meta['id'] != 'demo': write_json(DATA/'diagnostics'/(meta['id']+'.json'), {
         'usage':{k:int(usage.get(k,0)) for k in ['input_tokens','output_tokens','total_tokens']},
         'completed':result.get('status')=='completed',
         'output_limit_reached':(result.get('incomplete_details') or {}).get('reason')=='max_output_tokens'})
@@ -120,7 +150,8 @@ def api_request(meta,pdf,pages,model):
             for part in item.get('content',[]):
                 if part.get('type')=='refusal': raise ValueError('model_refusal')
                 if part.get('type')=='output_text': parts.append(part['text'])
-    report=validate_report(json.loads(''.join(parts)),pages,meta['issued_at'])
+    candidate=quarantine_unverified_claims(json.loads(''.join(parts)),pages)
+    report=validate_report(candidate,pages,meta['issued_at'])
     usage=result.get('usage') or {}
     return report.model_dump(),{k:int(usage.get(k,0)) for k in ['input_tokens','output_tokens','total_tokens']}
 
