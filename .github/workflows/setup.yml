@@ -1,0 +1,38 @@
+name: Initial source setup
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Expand verified source package once
+        shell: python
+        run: |
+          from pathlib import Path, PurePosixPath
+          import zipfile
+          package = Path('aviation-weather-briefing.zip')
+          if package.exists():
+              with zipfile.ZipFile(package) as archive:
+                  for item in archive.infolist():
+                      parts = PurePosixPath(item.filename).parts
+                      if not parts or parts[0] != 'aviation-weather-briefing' or '..' in parts:
+                          raise ValueError('Invalid archive path')
+                      if item.is_dir() or len(parts) < 2 or parts[1] == '.github':
+                          continue
+                      target = Path(*parts[1:])
+                      if target.exists():
+                          raise ValueError('Refusing overwrite')
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      target.write_bytes(archive.read(item))
+              package.unlink()
+      - name: Save source files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'Expand verified application source'
+            git push
+          fi
