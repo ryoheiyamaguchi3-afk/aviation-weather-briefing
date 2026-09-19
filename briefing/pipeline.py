@@ -92,8 +92,8 @@ def reserve(state, meta, retry=False, limit=70, now=None):
     old=state['documents'].get(sha)
     if old and old['status']=='complete': return False,'unchanged'
     if old and not retry: return False,'retry_required'
-    # User authorized exactly one extra retry for this initial deployment source.
-    extra_retry = (retry and old and len(old['attempts']) == 2 and
+    # User requested continuation after the exact-source quote fix: one fourth attempt.
+    extra_retry = (retry and old and len(old['attempts']) == 3 and
         sha == 'bdb60659e888cf73aa2c943243dc2aafd9ba7abcf41211a60cdd23ecaf65dfa5')
     if old and len(old['attempts'])>=2 and not extra_retry: return False,'attempt_limit'
     month=now.strftime('%Y-%m')
