@@ -16,6 +16,17 @@ ROOT=Path(__file__).resolve().parents[1]
 DATA=ROOT/'data'
 WORK=ROOT/'work'
 
+def safe_error_code(exc):
+    if isinstance(exc, urllib.error.HTTPError):
+        return 'http_' + str(int(exc.code))
+    known = {'missing_api_key','response_too_large','secret_in_response',
+             'incomplete_response','model_refusal','upper_levels','aviation_codes',
+             'timeline_slots','timeline_date','missing_evidence','unmatched_evidence'}
+    if type(exc) is ValueError and exc.args and exc.args[0] in known:
+        return exc.args[0]
+    if isinstance(exc, TimeoutError): return 'timeout'
+    return 'response_validation_or_processing_error'
+
 def read_json(path, default=None):
     return json.loads(path.read_text(encoding='utf-8')) if path.exists() else default
 
@@ -97,6 +108,11 @@ def api_request(meta,pdf,pages,model):
         if len(raw)>4*1024*1024: raise ValueError('response_too_large')
         if key.encode() in raw: raise ValueError('secret_in_response')
         result=json.loads(raw)
+    usage=result.get('usage') or {}
+    write_json(DATA/'diagnostics'/(meta['id']+'.json'), {
+        'usage':{k:int(usage.get(k,0)) for k in ['input_tokens','output_tokens','total_tokens']},
+        'completed':result.get('status')=='completed',
+        'output_limit_reached':(result.get('incomplete_details') or {}).get('reason')=='max_output_tokens'})
     if result.get('status')!='completed': raise ValueError('incomplete_response')
     parts=[]
     for item in result.get('output',[]):
@@ -126,10 +142,12 @@ def analyze(requester=api_request):
         write_json(DATA/'reports'/(meta['id']+'.json'),record)
         item['status']='complete'; item['attempts'][-1]['status']='complete'
         status('ok',source=meta)
-    except Exception:
+    except Exception as exc:
         # Never print exception strings or HTTP bodies: they can contain secrets.
+        code=safe_error_code(exc)
+        print('Analysis diagnostic: '+code, file=sys.stderr)
         item['status']='failed'; item['attempts'][-1]['status']='failed'
-        status('analysis_failed',source=meta)
+        status('analysis_failed',source=meta,diagnostic=code)
         raise RuntimeError('analysis_failed') from None
     finally:
         write_json(DATA/'state.json',state)
